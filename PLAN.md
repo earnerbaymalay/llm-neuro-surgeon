@@ -10,7 +10,7 @@
 ## Phase 1 — Design Pack → GATE 1 (human)
 - [x] T1.1  Compile DESIGN_PACK.md with tokens, components, voice, accessibility :: verify: every UI task in PLAN.md cites DESIGN_PACK.md section
 - [x] T1.2  Write RALPH_PROMPT.md and full task breakdown with verify: checks :: verify: RALPH_PROMPT.md parses as expected
-- [ ] T1.3  Gate 1: present pack for approval
+- [x] T1.3  Gate 1: present pack for approval
 
 ## Phase 2 — Architecture & Scaffold
 - [ ] T2.1  Monorepo layout: apps/desktop, packages/core, packages/schema, apps/cli, fixtures :: verify: cargo test and pnpm test green

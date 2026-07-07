@@ -7,7 +7,7 @@
 - T0.5 ✅ Complete: Present GATE 0 questions and record decisions in DECISIONS.md.
 - T1.1 ✅ Complete: Compile DESIGN_PACK.md with tokens, components, voice, accessibility.
 - T1.2 ✅ Complete: Implement RALPH_PROMPT.md operation loop with priority selection.
-- T1.3 🔄 Next: Gate 1 - present Design Pack for human approval.
+- T1.3 ✅ Complete: Present GATE 1 Design Pack for human approval.
 - T2.1 🔄 Next: Monorepo layout (apps/desktop, packages/core, packages/schema, apps/cli, fixtures).
 - T2.2 🔄 Next: Empty Tauri app launches on all 3 OSes.
 - T2.3 🔄 Next: CLI --help complete.
