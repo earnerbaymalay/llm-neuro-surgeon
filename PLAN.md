@@ -1,8 +1,8 @@
 # LLM Neurosurgeon — PLAN.md
 
 ## Phase 0 — Discovery & Design Elicitation → GATE 0 (human)
-- [ ] T0.1  Initialize repo + state files + subagent roles :: verify: git log --oneline shows scaffold commit
-- [ ] T0.2  Recon ×12 — verify current config paths/formats for all supported tools :: verify: docs/research/ contains 12 briefs
+- [x] T0.1  Initialize repo + state files + subagent roles :: verify: git log --oneline shows scaffold commit
+- [x] T0.2  Recon ×12 — verify current config paths/formats for all supported tools :: verify: docs/research/ contains 12 briefs
 - [ ] T0.3  Draft 3 brand identities (Cortex, Synapse, Cerebra) + HTML dashboard mocks :: verify: brands/<A|B|C>/index.html render without errors
 - [ ] T0.4  ASCII wireframes for all 8 screens :: verify: DESIGN_PACK.md wireframes section lists all 8 screens
 - [ ] T0.5  Present GATE 0 questions and await human picks :: verify: DECISIONS.md records choices
