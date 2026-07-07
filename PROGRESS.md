@@ -5,4 +5,29 @@
 - T0.3 ✅ Complete: 3 brand identity packages with HTML dashboard mocks.
 - T0.4 ✅ Complete: ASCII wireframes for all 8 screens (DESIGN_PACK.md).
 - T0.5 ✅ Complete: Present GATE 0 questions and record decisions in DECISIONS.md.
-- T0.6 🔄 Next: Initiate Phase 1 (Design Pack) workflow.
+- T1.1 ✅ Complete: Compile DESIGN_PACK.md with tokens, components, voice, accessibility.
+- T1.2 ✅ Complete: Implement RALPH_PROMPT.md operation loop with priority selection.
+- T1.3 🔄 Next: Gate 1 - present Design Pack for human approval.
+- T2.1 🔄 Next: Monorepo layout (apps/desktop, packages/core, packages/schema, apps/cli, fixtures).
+- T2.2 🔄 Next: Empty Tauri app launches on all 3 OSes.
+- T2.3 🔄 Next: CLI --help complete.
+- T3.1 🔄 Next: Adapter-smith swarm (12 adapters, detect/import/project + round-trip).
+- T3.2 🔄 Next: Projection engine with policy table, mappings.json, drift detector.
+- T3.3 🔄 Next: Red-team pass (symlink escape, path traversal, circular links, malformed configs).
+- T3.4 🔄 Next: Gate 2: human runs cli scan && cli import --dry-run.
+- T4.1 🔄 Next: Filesystem watcher + OS scheduler registration.
+- T4.2 🔄 Next: Conflict queue API + three-way merge.
+- T4.3 🔄 Next: Git snapshot/rollback commands + crash-safe lock.
+- T5.1 🔄 Next: ui-builder implements 8 screens from DESIGN_PACK.md.
+- T5.2 🔄 Next: Onboarding wizard wraps dry-run flow.
+- T5.3 🔄 Next: Gate 3: human reviews screenshots + demo.
+- T6.1 🔄 Next: Marketplace importers for skill sources.
+- T6.2 🔄 Next: MCP registry importers + health-check handshake.
+- T6.3 🔄 Next: Secrets flow: keychain, placeholders, project-to-all-tools.
+- T7.1 🔄 Next: Threat-model pass + red-team sign-off.
+- T7.2 🔄 Next: Doctor rules library (≥12 diagnoses).
+- T7.3 🔄 Next: Auto-update channel dry-run.
+- T7.4 🔄 Next: Doc set: README, user guide, adapter-authoring guide, CHANGELOG.
+- T8.1 🔄 Next: Signed installers (.dmg/.msi/AppImage/.deb) + CLI formulae drafts.
+- T8.2 🔄 Next: Reproducible-build notes.
+- T8.3 🔄 Next: Gate 4: human installs on real machine and runs onboarding.

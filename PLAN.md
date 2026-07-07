@@ -8,8 +8,8 @@
 - [x] T0.5  Present GATE 0 questions and await human picks :: verify: DECISIONS.md records choices
 
 ## Phase 1 — Design Pack → GATE 1 (human)
-- [ ] T1.1  Compile DESIGN_PACK.md with tokens, components, voice, accessibility :: verify: every UI task in PLAN.md cites DESIGN_PACK.md section
-- [ ] T1.2  Write RALPH_PROMPT.md and full task breakdown with verify: checks :: verify: RALPH_PROMPT.md parses as expected
+- [x] T1.1  Compile DESIGN_PACK.md with tokens, components, voice, accessibility :: verify: every UI task in PLAN.md cites DESIGN_PACK.md section
+- [x] T1.2  Write RALPH_PROMPT.md and full task breakdown with verify: checks :: verify: RALPH_PROMPT.md parses as expected
 - [ ] T1.3  Gate 1: present pack for approval
 
 ## Phase 2 — Architecture & Scaffold
