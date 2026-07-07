@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synapse | LLM Neurosurgeon</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            background: #0d1117;
+            color: #c9d1d9;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .dashboard {
+            background: #161b22;
+            border-radius: 12px;
+            padding: 3rem;
+            max-width: 900px;
+            width: 95%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            border: 1px solid #30363d;
+            position: relative;
+            overflow: hidden;
+        }
+        .dashboard::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #ff7b72, #58a6ff, #3fb950);
+            animation: glow 3s infinite;
+        }
+        @keyframes glow {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 1; }
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #30363d;
+        }
+        .logo {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #58a6ff;
+            text-shadow: 0 0 20px rgba(88, 166, 255, 0.5);
+        }
+        .tagline {
+            font-size: 1.1rem;
+            color: #8b949e;
+        }
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .stat-block {
+            background: #21262d;
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            border: 1px solid #30363d;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-block::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(88, 166, 255, 0.1), transparent);
+            transition: left 0.5s;
+        }
+        .stat-block:hover::before {
+            left: 100%;
+        }
+        .stat-block:hover {
+            border-color: #58a6ff;
+            transform: translateY(-2px);
+        }
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #58a6ff;
+            margin-bottom: 0.5rem;
+            font-variant-numeric: tabular-nums;
+        }
+        .stat-label {
+            font-size: 0.85rem;
+            color: #8b949e;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .code-preview {
+            background: #0d1117;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 2rem;
+            border-left: 4px solid #58a6ff;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.9rem;
+        }
+        .code-title {
+            color: #58a6ff;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+        .code-line {
+            color: #8b949e;
+            margin-bottom: 0.5rem;
+            padding-left: 1rem;
+            position: relative;
+        }
+        .code-line::before {
+            content: '>';
+            position: absolute;
+            left: 0;
+            color: #58a6ff;
+        }
+        .terminal {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 2rem;
+            padding: 1rem;
+            background: rgba(88, 166, 255, 0.1);
+            border-radius: 6px;
+            border: 1px solid rgba(88, 166, 255, 0.3);
+        }
+        .terminal-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #3fb950;
+            animation: blink 1.5s infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .terminal-text {
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="header">
+            <div class="logo">SYNAPS</div>
+            <div class="tagline">//dev/neural-protocol/processing</div>
+        </div>
+        
+        <div class="stats-container">
+            <div class="stat-block">
+                <div class="stat-value">3</div>
+                <div class="stat-label">Brand Identities</div>
+            </div>
+            <div class="stat-block">
+                <div class="stat-value">100%</div>
+                <div class="stat-label">Cross-Platform</div>
+            </div>
+            <div class="stat-block">
+                <div class="stat-value">2.4k</div>
+                <div class="stat-label">Lines Configured</div>
+            </div>
+            <div class="stat-block">
+                <div class="stat-value">24/7</div>
+                <div class="stat-label">Active Monitoring</div>
+            </div>
+        </div>
+        
+        <div class="code-preview">
+            <div class="code-title">Live Configuration Status:</div>
+            <div class="code-line">const brand = 'Synapse';</div>
+            <div class="code-line">const status = 'Phase 3 Active';</div>
+            <div class="code-line">const capability = 'Cross-platform';</div>
+            <div class="code-line">const licenses = ['MIT', 'Proprietary'];</div>
+        </div>
+        
+        <div class="terminal">
+            <div class="terminal-dot"></div>
+            <div class="terminal-text">Ready for Phase 4 Sync Daemon</div>
+        </div>
+    </div>
+</body>
+</html>
