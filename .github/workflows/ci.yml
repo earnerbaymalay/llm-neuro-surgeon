@@ -82,7 +82,6 @@ jobs:
     # The committed E2E suite currently specifies CLI write paths that are not
     # implemented yet. Keep it visible on every change without misreporting it
     # as a release gate until that backlog reaches zero failures.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -96,6 +95,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - uses: Swatinem/rust-cache@v2
       - name: End-to-end tests
+        continue-on-error: true
         run: pnpm --filter @llm-neurosurgeon/e2e test
 
   shell:
