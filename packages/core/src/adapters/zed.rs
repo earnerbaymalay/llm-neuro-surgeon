@@ -1,8 +1,6 @@
-use super::{
-    clean_jsonc, compute_sha256, parse_and_validate_mcp_server, strip_provenance,
-};
+use super::{compute_sha256, strip_provenance, write_if_changed};
 use crate::adapter::{Adapter, AdapterError, ImportResult, ProjectResult};
-use crate::model::{Agent, McpServer, Skill};
+use crate::model::{Agent, HealthStatus, McpServer, Skill};
 use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -19,9 +17,12 @@ impl Adapter for ZedAdapter {
             || root.join(".zed/settings.json").exists()
             || root.join(".config/zed/AGENTS.md").exists()
             || root.join(".config/zed/settings.json").exists();
-        let in_home = std::env::var_os("HOME").map(PathBuf::from).map_or(false, |h| {
-            h.join(".config/zed/AGENTS.md").exists() || h.join(".config/zed/settings.json").exists()
-        });
+        let in_home = std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .is_some_and(|h| {
+                h.join(".config/zed/AGENTS.md").exists()
+                    || h.join(".config/zed/settings.json").exists()
+            });
         in_root || in_home
     }
 
@@ -31,25 +32,22 @@ impl Adapter for ZedAdapter {
 
         let rules_path = root.join(".rules");
         let zed_agents_path = root.join(".config/zed/AGENTS.md");
-        let home_agents_path = std::env::var_os("HOME").map(PathBuf::from).map(|h| h.join(".config/zed/AGENTS.md"));
+        let home_agents_path = std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .map(|h| h.join(".config/zed/AGENTS.md"));
 
         let target_rules_path = if rules_path.exists() {
             Some(rules_path)
         } else if zed_agents_path.exists() {
             Some(zed_agents_path)
-        } else if let Some(hp) = home_agents_path {
-            if hp.exists() {
-                Some(hp)
-            } else {
-                None
-            }
         } else {
-            None
+            home_agents_path.filter(|hp| hp.exists())
         };
 
         if let Some(path) = target_rules_path {
-            let raw = fs::read_to_string(&path)
-                .map_err(|e| AdapterError::Io(format!("Failed to read {}: {}", path.display(), e)))?;
+            let raw = fs::read_to_string(&path).map_err(|e| {
+                AdapterError::Io(format!("Failed to read {}: {}", path.display(), e))
+            })?;
             let content = strip_provenance(&raw);
             let sha256 = compute_sha256(&content);
             skills.push(Skill {
@@ -62,38 +60,54 @@ impl Adapter for ZedAdapter {
             });
         }
 
-        let mut settings_paths = Vec::new();
-        let root_zed = root.join(".zed/settings.json");
-        if root_zed.exists() {
-            settings_paths.push(root_zed);
-        }
-        let root_config_zed = root.join(".config/zed/settings.json");
-        if root_config_zed.exists() {
-            settings_paths.push(root_config_zed);
-        }
-        if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
-            let home_settings = home.join(".config/zed/settings.json");
-            if home_settings.exists() && !settings_paths.contains(&home_settings) {
-                settings_paths.push(home_settings);
-            }
-        }
-
-        for settings_path in settings_paths {
+        let settings_path = root.join(".zed/settings.json");
+        if settings_path.exists() {
             let raw_json = fs::read_to_string(&settings_path).map_err(|e| {
-                AdapterError::Io(format!("Failed to read {}: {}", settings_path.display(), e))
+                AdapterError::Io(format!("Failed to read .zed/settings.json: {}", e))
             })?;
-            let cleaned = clean_jsonc(&raw_json);
-            let parsed: Value = serde_json::from_str(&cleaned).map_err(|e| {
-                AdapterError::Malformed(format!(
-                    "Invalid JSON in {}: {}",
-                    settings_path.display(),
-                    e
-                ))
+            let parsed: Value = serde_json::from_str(&raw_json).map_err(|e| {
+                AdapterError::Malformed(format!("Invalid JSON in .zed/settings.json: {}", e))
             })?;
 
             if let Some(servers) = parsed.get("context_servers").and_then(|v| v.as_object()) {
                 for (id, val) in servers {
-                    parse_and_validate_mcp_server(id, val, "zed", &mut mcp_servers)?;
+                    let command = val
+                        .get("command")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let args: Vec<String> = val
+                        .get("args")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| {
+                            arr.iter()
+                                .map(|item| item.as_str().unwrap_or("").to_string())
+                                .collect()
+                        })
+                        .unwrap_or_default();
+
+                    let command_or_url = if args.is_empty() {
+                        command
+                    } else {
+                        format!("{} {}", command, args.join(" "))
+                    };
+
+                    let mut env_placeholders = Vec::new();
+                    if let Some(env_obj) = val.get("env").and_then(|v| v.as_object()) {
+                        for key in env_obj.keys() {
+                            env_placeholders.push(key.clone());
+                        }
+                    }
+                    env_placeholders.sort();
+
+                    mcp_servers.push(McpServer {
+                        id: id.clone(),
+                        transport: "stdio".to_string(),
+                        command_or_url,
+                        env_placeholders,
+                        targets: vec!["zed".to_string()],
+                        health: HealthStatus::Unknown,
+                    });
                 }
             }
         }
@@ -129,17 +143,18 @@ impl Adapter for ZedAdapter {
                 "<!-- GENERATED BY LLM NEUROSURGEON — edit in the Brain -->\n{}",
                 concatenated
             );
-            fs::write(root.join(".rules"), &output)
+            let rules_path = root.join(".rules");
+            write_if_changed(&rules_path, &output)
                 .map_err(|e| AdapterError::Io(format!("Failed to write .rules: {}", e)))?;
             written.push(".rules".to_string());
 
             let config_zed = root.join(".config/zed");
             let target_config_zed = if config_zed.exists() || root.join(".config").exists() {
                 Some(config_zed)
-            } else if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
-                Some(home.join(".config/zed"))
             } else {
-                None
+                std::env::var_os("HOME")
+                    .map(PathBuf::from)
+                    .map(|home| home.join(".config/zed"))
             };
 
             if let Some(dir) = target_config_zed {
@@ -147,8 +162,8 @@ impl Adapter for ZedAdapter {
                     AdapterError::Io(format!("Failed to create .config/zed directory: {}", e))
                 })?;
                 let agents_path = dir.join("AGENTS.md");
-                fs::write(&agents_path, &output).map_err(|e| {
-                    AdapterError::Io(format!("Failed to write .config/zed/AGENTS.md: {}", e))
+                write_if_changed(&agents_path, &output).map_err(|e| {
+                    AdapterError::Io(format!("Failed to write {}: {}", agents_path.display(), e))
                 })?;
                 written.push(".config/zed/AGENTS.md".to_string());
             }
@@ -229,7 +244,7 @@ impl Adapter for ZedAdapter {
 
             let pretty = serde_json::to_string_pretty(&current_json)
                 .map_err(|e| AdapterError::Malformed(format!("Failed to serialize JSON: {}", e)))?;
-            fs::write(&settings_path, pretty).map_err(|e| {
+            write_if_changed(&settings_path, pretty).map_err(|e| {
                 AdapterError::Io(format!("Failed to write .zed/settings.json: {}", e))
             })?;
             written.push(".zed/settings.json".to_string());
@@ -292,7 +307,10 @@ mod tests {
             .unwrap();
 
         assert!(project_res.written.contains(&".rules".to_string()));
-        assert!(project_res.written.iter().any(|w| w.contains("settings.json")));
+        assert!(project_res
+            .written
+            .iter()
+            .any(|w| w.contains("settings.json")));
         let projected_rules = fs::read_to_string(out_dir.path().join(".rules")).unwrap();
         assert!(projected_rules.contains("Always write tests first"));
 

@@ -78,7 +78,11 @@ impl Adapter for AiderAdapter {
                 if key == "read" {
                     let cleaned_val = val.trim_matches('[').trim_matches(']').trim();
                     for item in cleaned_val.split(',') {
-                        let path_str = item.trim().trim_matches('"').trim_matches('\'').replace('\\', "/");
+                        let path_str = item
+                            .trim()
+                            .trim_matches('"')
+                            .trim_matches('\'')
+                            .replace('\\', "/");
                         if path_str.is_empty() {
                             continue;
                         }

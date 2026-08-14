@@ -18,7 +18,7 @@ impl Adapter for WindsurfAdapter {
     fn detect(&self, root: &Path) -> bool {
         root.join(".windsurfrules").exists()
             || root.join(".codeium/windsurf/mcp.json").exists()
-            || get_windsurf_mcp_path().map_or(false, |p| p.exists())
+            || get_windsurf_mcp_path().is_some_and(|p| p.exists())
     }
 
     fn import(&self, root: &Path) -> Result<ImportResult, AdapterError> {
