@@ -1,9 +1,10 @@
 use super::{
-    compute_sha256, parse_mdc_frontmatter, safe_join, serialize_mdc_frontmatter, split_frontmatter,
-    strip_provenance, MdcFrontmatter,
+    compute_sha256, parse_and_validate_mcp_server, parse_mdc_frontmatter, safe_join,
+    serialize_mdc_frontmatter, split_frontmatter, strip_provenance, MdcFrontmatter,
 };
 use crate::adapter::{Adapter, AdapterError, ImportResult, ProjectResult};
 use crate::model::{Agent, McpServer, Skill};
+use serde_json::Value;
 use std::fs;
 use std::path::Path;
 
@@ -21,10 +22,12 @@ impl Adapter for CursorAdapter {
         root.join(".cursorrules").exists()
             || root.join(".cursor/rules").is_dir()
             || root.join(".cursor/settings.json").exists()
+            || root.join(".cursor/mcp.json").exists()
     }
 
     fn import(&self, root: &Path) -> Result<ImportResult, AdapterError> {
         let mut skills = Vec::new();
+        let mut mcp_servers = Vec::new();
 
         let legacy_path = root.join(".cursorrules");
         if legacy_path.exists() {
@@ -40,6 +43,35 @@ impl Adapter for CursorAdapter {
                 source: content,
                 sha256,
             });
+        }
+
+        let settings_path = root.join(".cursor/settings.json");
+        if settings_path.exists() {
+            let raw_json = fs::read_to_string(&settings_path).map_err(|e| {
+                AdapterError::Io(format!("Failed to read .cursor/settings.json: {}", e))
+            })?;
+            let parsed: Value = serde_json::from_str(&raw_json).map_err(|e| {
+                AdapterError::Malformed(format!("Invalid JSON in .cursor/settings.json: {}", e))
+            })?;
+            if let Some(servers) = parsed.get("mcpServers").and_then(|v| v.as_object()) {
+                for (id, val) in servers {
+                    parse_and_validate_mcp_server(id, val, "cursor", &mut mcp_servers)?;
+                }
+            }
+        }
+
+        let mcp_path = root.join(".cursor/mcp.json");
+        if mcp_path.exists() {
+            let raw_json = fs::read_to_string(&mcp_path)
+                .map_err(|e| AdapterError::Io(format!("Failed to read .cursor/mcp.json: {}", e)))?;
+            let parsed: Value = serde_json::from_str(&raw_json).map_err(|e| {
+                AdapterError::Malformed(format!("Invalid JSON in .cursor/mcp.json: {}", e))
+            })?;
+            if let Some(servers) = parsed.get("mcpServers").and_then(|v| v.as_object()) {
+                for (id, val) in servers {
+                    parse_and_validate_mcp_server(id, val, "cursor", &mut mcp_servers)?;
+                }
+            }
         }
 
         let rules_dir = root.join(".cursor/rules");
@@ -72,9 +104,11 @@ impl Adapter for CursorAdapter {
                 })?;
                 let content = strip_provenance(&raw);
                 let (fm_opt, body) = split_frontmatter(&content);
-                let fm = fm_opt
-                    .map(|fm| parse_mdc_frontmatter(&fm))
-                    .unwrap_or_default();
+                let fm = if let Some(fm_str) = fm_opt {
+                    parse_mdc_frontmatter(&fm_str)?
+                } else {
+                    MdcFrontmatter::default()
+                };
 
                 let triggers = if !fm.globs.is_empty() {
                     fm.globs
@@ -100,7 +134,7 @@ impl Adapter for CursorAdapter {
         Ok(ImportResult {
             skills,
             agents: Vec::new(),
-            mcp_servers: Vec::new(),
+            mcp_servers,
         })
     }
 

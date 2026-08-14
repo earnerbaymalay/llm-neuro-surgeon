@@ -1,3 +1,4 @@
+use super::{has_path_traversal, parse_and_validate_mcp_server};
 use crate::adapter::{Adapter, AdapterError, ImportResult, ProjectResult};
 use crate::model::{Agent, HealthStatus, McpServer, Skill};
 use std::fs;
@@ -6,7 +7,7 @@ use toml::{Table, Value};
 
 pub struct OpenAiCodexAdapter;
 
-/// Codex CLI's own project-scoped artifact is `.codex/config.toml` (its
+/// Codex CLI's own project-scoped artifact is `.codex/config.toml` or `.codex/config.json` (its
 /// `[mcp_servers.*]` tables). `AGENTS.md` is deliberately left to
 /// `OpenCodeAdapter` — both tools converge on that filename as the emerging
 /// cross-tool instructions standard (see MASTER_PROMPT.md §1), so claiming
@@ -31,13 +32,66 @@ impl Adapter for OpenAiCodexAdapter {
         let skills = Vec::new();
         let mut mcp_servers = Vec::new();
 
-        let config_path = root.join(".codex/config.toml");
-        if config_path.exists() {
+        // 1. Check .codex/config.json in root or home
+        let json_path = if root.join(".codex/config.json").exists() {
+            Some(root.join(".codex/config.json"))
+        } else if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
+            if home.join(".codex/config.json").exists() {
+                Some(home.join(".codex/config.json"))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        if let Some(path) = json_path {
+            let raw = fs::read_to_string(&path).map_err(|e| {
+                AdapterError::Io(format!("Failed to read {}: {}", path.display(), e))
+            })?;
+            let parsed: serde_json::Value = serde_json::from_str(&raw).map_err(|e| {
+                AdapterError::Malformed(format!("Invalid JSON in {}: {}", path.display(), e))
+            })?;
+
+            if let Some(cmd) = parsed.get("command").and_then(|v| v.as_str()) {
+                if has_path_traversal(cmd) {
+                    return Err(AdapterError::Malformed(format!(
+                        "Path traversal in .codex/config.json command: {cmd}"
+                    )));
+                }
+            }
+
+            let servers_opt = parsed
+                .get("mcp_servers")
+                .or_else(|| parsed.get("mcpServers"))
+                .and_then(|v| v.as_object());
+
+            if let Some(servers) = servers_opt {
+                for (id, val) in servers {
+                    parse_and_validate_mcp_server(id, val, "openai-codex", &mut mcp_servers)?;
+                }
+            }
+        }
+
+        // 2. Check .codex/config.toml in root or home
+        let toml_path = if root.join(".codex/config.toml").exists() {
+            Some(root.join(".codex/config.toml"))
+        } else if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
+            if home.join(".codex/config.toml").exists() {
+                Some(home.join(".codex/config.toml"))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        if let Some(config_path) = toml_path {
             let raw = fs::read_to_string(&config_path).map_err(|e| {
-                AdapterError::Io(format!("Failed to read .codex/config.toml: {}", e))
+                AdapterError::Io(format!("Failed to read {}: {}", config_path.display(), e))
             })?;
             let parsed: Value = toml::from_str(&raw).map_err(|e| {
-                AdapterError::Malformed(format!("Invalid TOML in .codex/config.toml: {}", e))
+                AdapterError::Malformed(format!("Invalid TOML in {}: {}", config_path.display(), e))
             })?;
 
             if let Some(servers) = parsed.get("mcp_servers").and_then(|v| v.as_table()) {
@@ -57,6 +111,32 @@ impl Adapter for OpenAiCodexAdapter {
                                 .collect()
                         })
                         .unwrap_or_default();
+
+                    if url.is_none() && command.trim().is_empty() {
+                        return Err(AdapterError::Malformed(format!(
+                            "MCP server '{id}' is missing required `command` or `url`"
+                        )));
+                    }
+
+                    if let Some(u) = url {
+                        if has_path_traversal(u) {
+                            return Err(AdapterError::Malformed(format!(
+                                "Path traversal in MCP server '{id}' url: {u}"
+                            )));
+                        }
+                    }
+                    if !command.is_empty() && has_path_traversal(&command) {
+                        return Err(AdapterError::Malformed(format!(
+                            "Path traversal in MCP server '{id}' command: {command}"
+                        )));
+                    }
+                    for arg in &args {
+                        if has_path_traversal(arg) {
+                            return Err(AdapterError::Malformed(format!(
+                                "Path traversal in MCP server '{id}' arg: {arg}"
+                            )));
+                        }
+                    }
 
                     let (transport, command_or_url) = if let Some(url) = url {
                         ("http".to_string(), url.to_string())

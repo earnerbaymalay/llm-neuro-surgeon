@@ -1,4 +1,6 @@
-use super::{compute_sha256, safe_join, split_frontmatter, strip_provenance};
+use super::{
+    compute_sha256, parse_and_validate_mcp_server, safe_join, split_frontmatter, strip_provenance,
+};
 use crate::adapter::{Adapter, AdapterError, ImportResult, ProjectResult};
 use crate::model::{Agent, HealthStatus, McpServer, Skill};
 use serde_json::{json, Value};
@@ -66,6 +68,7 @@ impl Adapter for ClaudeCodeAdapter {
     fn detect(&self, root: &Path) -> bool {
         root.join("CLAUDE.md").exists()
             || root.join(".claude").is_dir()
+            || root.join(".claude/settings.json").exists()
             || root.join(".mcp.json").exists()
     }
 
@@ -173,6 +176,22 @@ impl Adapter for ClaudeCodeAdapter {
             }
         }
 
+        let settings_path = root.join(".claude/settings.json");
+        if settings_path.exists() {
+            let raw_json = fs::read_to_string(&settings_path).map_err(|e| {
+                AdapterError::Io(format!("Failed to read .claude/settings.json: {}", e))
+            })?;
+            let parsed: Value = serde_json::from_str(&raw_json).map_err(|e| {
+                AdapterError::Malformed(format!("Invalid JSON in .claude/settings.json: {}", e))
+            })?;
+
+            if let Some(servers) = parsed.get("mcpServers").and_then(|v| v.as_object()) {
+                for (id, val) in servers {
+                    parse_and_validate_mcp_server(id, val, "claude-code", &mut mcp_servers)?;
+                }
+            }
+        }
+
         let mcp_path = root.join(".mcp.json");
         if mcp_path.exists() {
             let raw_json = fs::read_to_string(&mcp_path)
@@ -183,42 +202,7 @@ impl Adapter for ClaudeCodeAdapter {
 
             if let Some(servers) = parsed.get("mcpServers").and_then(|v| v.as_object()) {
                 for (id, val) in servers {
-                    let command = val
-                        .get("command")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string();
-                    let args: Vec<String> = val
-                        .get("args")
-                        .and_then(|v| v.as_array())
-                        .map(|arr| {
-                            arr.iter()
-                                .map(|item| item.as_str().unwrap_or("").to_string())
-                                .collect()
-                        })
-                        .unwrap_or_default();
-                    let command_or_url = if args.is_empty() {
-                        command
-                    } else {
-                        format!("{} {}", command, args.join(" "))
-                    };
-
-                    let mut env_placeholders = Vec::new();
-                    if let Some(env_obj) = val.get("env").and_then(|v| v.as_object()) {
-                        for key in env_obj.keys() {
-                            env_placeholders.push(key.clone());
-                        }
-                    }
-                    env_placeholders.sort();
-
-                    mcp_servers.push(McpServer {
-                        id: id.clone(),
-                        transport: "stdio".to_string(),
-                        command_or_url,
-                        env_placeholders,
-                        targets: vec!["claude-code".to_string()],
-                        health: HealthStatus::Unknown,
-                    });
+                    parse_and_validate_mcp_server(id, val, "claude-code", &mut mcp_servers)?;
                 }
             }
         }

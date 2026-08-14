@@ -193,10 +193,23 @@ pub fn perform_project(brain_root: &Path, tool_root: &Path) -> Result<Vec<String
         }
     }
 
+    let mut had_error = false;
+    let mut last_err = String::new();
+
     for adapter in all_adapters() {
-        if let Ok(res) = adapter.project(tool_root, &skills, &agents, &mcp_servers) {
-            projected_paths.extend(res.written);
+        match adapter.project(tool_root, &skills, &agents, &mcp_servers) {
+            Ok(res) => {
+                projected_paths.extend(res.written);
+            }
+            Err(e) => {
+                had_error = true;
+                last_err = format!("Adapter {} project failed: {}", adapter.id(), e);
+            }
         }
+    }
+
+    if had_error {
+        return Err(last_err);
     }
 
     Ok(projected_paths)

@@ -1,4 +1,4 @@
-use super::compute_sha256;
+use super::{compute_sha256, has_path_traversal};
 use crate::adapter::{Adapter, AdapterError, ImportResult, ProjectResult};
 use crate::model::{Agent, McpServer, Skill};
 use serde_json::{json, Value};
@@ -32,65 +32,79 @@ impl Adapter for RooCodeAdapter {
                 AdapterError::Malformed(format!("Invalid JSON in .roomodes: {}", e))
             })?;
 
-            let modes = parsed
-                .get("customModes")
-                .and_then(|v| v.as_array())
-                .ok_or_else(|| {
-                    AdapterError::Malformed("customModes is missing or not an array".to_string())
+            if let Some(custom_modes_val) = parsed.get("customModes") {
+                let modes = custom_modes_val.as_array().ok_or_else(|| {
+                    AdapterError::Malformed("customModes is not an array".to_string())
                 })?;
 
-            for mode in modes {
-                let slug = mode
-                    .get("slug")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| {
-                        AdapterError::Malformed("custom mode missing `slug`".to_string())
-                    })?
-                    .to_string();
+                for mode in modes {
+                    let mode_obj = mode.as_object().ok_or_else(|| {
+                        AdapterError::Malformed("custom mode must be an object".to_string())
+                    })?;
 
-                let groups: Vec<String> = mode
-                    .get("groups")
-                    .and_then(|v| v.as_array())
-                    .map(|arr| {
-                        arr.iter()
-                            .filter_map(|item| item.as_str().map(|s| s.to_string()))
-                            .collect()
-                    })
-                    .unwrap_or_default();
+                    // Check for path traversal in any mode field (trigger, slug, roleDefinition, etc.)
+                    for (k, v) in mode_obj {
+                        if let Some(s) = v.as_str() {
+                            if has_path_traversal(s) {
+                                return Err(AdapterError::Malformed(format!(
+                                    "Path traversal in custom mode field '{k}': {s}"
+                                )));
+                            }
+                        }
+                    }
 
-                let role_definition = mode
-                    .get("roleDefinition")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-                let custom_instructions = mode
-                    .get("customInstructions")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                    let slug = mode
+                        .get("slug")
+                        .and_then(|v| v.as_str())
+                        .ok_or_else(|| {
+                            AdapterError::Malformed("custom mode missing `slug`".to_string())
+                        })?
+                        .to_string();
 
-                agents.push(Agent {
-                    slug: slug.clone(),
-                    tools: groups,
-                    model_hints: Vec::new(),
-                    targets: vec!["roo-code".to_string()],
-                });
+                    let groups: Vec<String> = mode
+                        .get("groups")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|item| item.as_str().map(|s| s.to_string()))
+                                .collect()
+                        })
+                        .unwrap_or_default();
 
-                let body = if custom_instructions.is_empty() {
-                    role_definition.to_string()
-                } else if role_definition.is_empty() {
-                    custom_instructions.to_string()
-                } else {
-                    format!("{}\n\n{}", role_definition, custom_instructions)
-                };
-                let sha256 = compute_sha256(&body);
+                    let role_definition = mode
+                        .get("roleDefinition")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let custom_instructions = mode
+                        .get("customInstructions")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
 
-                skills.push(Skill {
-                    id: format!("roo-mode-{}", slug),
-                    version: "1.0.0".to_string(),
-                    triggers: vec!["*".to_string()],
-                    targets: vec!["roo-code".to_string()],
-                    source: body,
-                    sha256,
-                });
+                    agents.push(Agent {
+                        slug: slug.clone(),
+                        tools: groups,
+                        model_hints: Vec::new(),
+                        targets: vec!["roo-code".to_string()],
+                    });
+
+                    let body = if custom_instructions.is_empty() {
+                        role_definition.to_string()
+                    } else if role_definition.is_empty() {
+                        custom_instructions.to_string()
+                    } else {
+                        format!("{}\n\n{}", role_definition, custom_instructions)
+                    };
+                    let sha256 = compute_sha256(&body);
+
+                    skills.push(Skill {
+                        id: format!("roo-mode-{}", slug),
+                        version: "1.0.0".to_string(),
+                        triggers: vec!["*".to_string()],
+                        targets: vec!["roo-code".to_string()],
+                        source: body,
+                        sha256,
+                    });
+                }
             }
         }
 
@@ -245,7 +259,10 @@ mod tests {
         let adapter = RooCodeAdapter;
         fs::write(dir.path().join(".roomodes"), "{}").unwrap();
         let res = adapter.import(dir.path());
-        assert!(matches!(res, Err(AdapterError::Malformed(_))));
+        assert!(res.is_ok());
+        let imported = res.unwrap();
+        assert!(imported.skills.is_empty());
+        assert!(imported.agents.is_empty());
     }
 
     #[test]

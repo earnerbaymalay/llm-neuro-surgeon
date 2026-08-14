@@ -1,4 +1,4 @@
-use super::{compute_sha256, strip_provenance};
+use super::{compute_sha256, has_path_traversal, strip_provenance};
 use crate::adapter::{Adapter, AdapterError, ImportResult, ProjectResult};
 use crate::model::{Agent, McpServer, Skill};
 use std::fs;
@@ -19,14 +19,20 @@ fn parse_flat_yaml(content: &str) -> Result<Vec<(String, String)>, AdapterError>
         }
         let colon_idx = trimmed.find(':').ok_or_else(|| {
             AdapterError::Malformed(format!(
-                "line {}: expected `key: value`, got `{}`",
+                "malformed config: line {}: expected `key: value`, got `{}`",
                 lineno + 1,
                 trimmed
             ))
         })?;
         let key = trimmed[..colon_idx].trim().to_string();
-        let value = trimmed[colon_idx + 1..]
-            .trim()
+        let val_part = trimmed[colon_idx + 1..].trim();
+        if val_part.starts_with('[') && !val_part.ends_with(']') {
+            return Err(AdapterError::Malformed(format!(
+                "malformed config: line {} has unclosed bracket in YAML",
+                lineno + 1
+            )));
+        }
+        let value = val_part
             .trim_matches('"')
             .trim_matches('\'')
             .to_string();
@@ -75,6 +81,12 @@ impl Adapter for AiderAdapter {
                         let path_str = item.trim().trim_matches('"').trim_matches('\'').replace('\\', "/");
                         if path_str.is_empty() {
                             continue;
+                        }
+                        if has_path_traversal(&path_str) {
+                            return Err(AdapterError::Malformed(format!(
+                                "malformed config: path traversal detected in read path: {}",
+                                path_str
+                            )));
                         }
                         let target_file = root.join(&path_str);
                         if target_file.exists() {
