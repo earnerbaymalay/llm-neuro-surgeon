@@ -138,7 +138,10 @@ impl Adapter for OpenCodeAdapter {
             }
 
             // Check for unclosed code fence markers (e.g. ```yaml without closing ```)
-            let fence_count = content.lines().filter(|l| l.trim().starts_with("```")).count();
+            let fence_count = content
+                .lines()
+                .filter(|l| l.trim().starts_with("```"))
+                .count();
             if fence_count % 2 != 0 {
                 return Err(AdapterError::Malformed(
                     "Malformed AGENTS.md: unclosed code block".to_string(),

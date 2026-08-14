@@ -32,10 +32,7 @@ fn parse_flat_yaml(content: &str) -> Result<Vec<(String, String)>, AdapterError>
                 lineno + 1
             )));
         }
-        let value = val_part
-            .trim_matches('"')
-            .trim_matches('\'')
-            .to_string();
+        let value = val_part.trim_matches('"').trim_matches('\'').to_string();
         pairs.push((key, value));
     }
     Ok(pairs)

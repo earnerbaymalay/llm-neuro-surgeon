@@ -1,6 +1,7 @@
 use super::{
     compute_sha256, parse_and_validate_mcp_server, parse_mdc_frontmatter, safe_join,
-    serialize_mdc_frontmatter, split_frontmatter, strip_provenance, write_if_changed, MdcFrontmatter,
+    serialize_mdc_frontmatter, split_frontmatter, strip_provenance, write_if_changed,
+    MdcFrontmatter,
 };
 use crate::adapter::{Adapter, AdapterError, ImportResult, ProjectResult};
 use crate::model::{Agent, McpServer, Skill};

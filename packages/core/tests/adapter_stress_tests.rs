@@ -399,7 +399,10 @@ fn test_windsurf_adapter_path_traversal_and_missing() {
         r#"{"mcpServers": {"test": {"command": "../../../../sh"}}}"#,
     )
     .unwrap();
-    assert!(matches!(adapter.import(dir.path()), Err(AdapterError::Malformed(_))));
+    assert!(matches!(
+        adapter.import(dir.path()),
+        Err(AdapterError::Malformed(_))
+    ));
 
     // Missing command
     fs::write(
@@ -407,7 +410,10 @@ fn test_windsurf_adapter_path_traversal_and_missing() {
         r#"{"mcpServers": {"sqlite": {}}}"#,
     )
     .unwrap();
-    assert!(matches!(adapter.import(dir.path()), Err(AdapterError::Malformed(_))));
+    assert!(matches!(
+        adapter.import(dir.path()),
+        Err(AdapterError::Malformed(_))
+    ));
 }
 
 #[test]
@@ -423,7 +429,10 @@ fn test_zed_adapter_boundary_cases() {
 
     // Malformed json
     fs::write(zed_config.join("settings.json"), "{invalid}").unwrap();
-    assert!(matches!(adapter.import(dir.path()), Err(AdapterError::Malformed(_))));
+    assert!(matches!(
+        adapter.import(dir.path()),
+        Err(AdapterError::Malformed(_))
+    ));
 
     // Path traversal
     fs::write(
@@ -431,7 +440,10 @@ fn test_zed_adapter_boundary_cases() {
         r#"{"context_servers": {"test": {"command": "../../../../sh"}}}"#,
     )
     .unwrap();
-    assert!(matches!(adapter.import(dir.path()), Err(AdapterError::Malformed(_))));
+    assert!(matches!(
+        adapter.import(dir.path()),
+        Err(AdapterError::Malformed(_))
+    ));
 
     // Missing command
     fs::write(
@@ -439,6 +451,8 @@ fn test_zed_adapter_boundary_cases() {
         r#"{"context_servers": {"sqlite": {}}}"#,
     )
     .unwrap();
-    assert!(matches!(adapter.import(dir.path()), Err(AdapterError::Malformed(_))));
+    assert!(matches!(
+        adapter.import(dir.path()),
+        Err(AdapterError::Malformed(_))
+    ));
 }
-

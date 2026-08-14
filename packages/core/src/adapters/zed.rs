@@ -1,4 +1,4 @@
-use super::{compute_sha256, strip_provenance, write_if_changed};
+use super::{compute_sha256, has_path_traversal, strip_provenance, write_if_changed};
 use crate::adapter::{Adapter, AdapterError, ImportResult, ProjectResult};
 use crate::model::{Agent, HealthStatus, McpServer, Skill};
 use serde_json::{json, Value};
@@ -60,31 +60,124 @@ impl Adapter for ZedAdapter {
             });
         }
 
-        let settings_path = root.join(".zed/settings.json");
-        if settings_path.exists() {
-            let raw_json = fs::read_to_string(&settings_path).map_err(|e| {
-                AdapterError::Io(format!("Failed to read .zed/settings.json: {}", e))
+        let mut settings_candidates = Vec::new();
+        if root.join(".zed/settings.json").exists() {
+            settings_candidates.push(root.join(".zed/settings.json"));
+        }
+        if root.join(".config/zed/settings.json").exists() {
+            settings_candidates.push(root.join(".config/zed/settings.json"));
+        }
+        if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
+            let home_settings = home.join(".config/zed/settings.json");
+            if home_settings.exists() && !settings_candidates.contains(&home_settings) {
+                settings_candidates.push(home_settings);
+            }
+        }
+
+        for path in settings_candidates {
+            let raw_json = fs::read_to_string(&path).map_err(|e| {
+                AdapterError::Io(format!("Failed to read {}: {}", path.display(), e))
             })?;
             let parsed: Value = serde_json::from_str(&raw_json).map_err(|e| {
-                AdapterError::Malformed(format!("Invalid JSON in .zed/settings.json: {}", e))
+                AdapterError::Malformed(format!("Invalid JSON in {}: {}", path.display(), e))
             })?;
 
-            if let Some(servers) = parsed.get("context_servers").and_then(|v| v.as_object()) {
+            if let Some(servers) = parsed
+                .get("context_servers")
+                .or_else(|| parsed.get("contextServers"))
+                .or_else(|| parsed.get("mcp_servers"))
+                .or_else(|| parsed.get("mcpServers"))
+                .and_then(|v| v.as_object())
+            {
                 for (id, val) in servers {
-                    let command = val
-                        .get("command")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string();
-                    let args: Vec<String> = val
-                        .get("args")
-                        .and_then(|v| v.as_array())
-                        .map(|arr| {
-                            arr.iter()
-                                .map(|item| item.as_str().unwrap_or("").to_string())
-                                .collect()
-                        })
-                        .unwrap_or_default();
+                    let Some(obj) = val.as_object() else {
+                        return Err(AdapterError::Malformed(format!(
+                            "Context server '{id}' is not an object"
+                        )));
+                    };
+
+                    let (command, args) =
+                        if let Some(cmd_str) = obj.get("command").and_then(|v| v.as_str()) {
+                            let args: Vec<String> = obj
+                                .get("args")
+                                .and_then(|v| v.as_array())
+                                .map(|arr| {
+                                    arr.iter()
+                                        .filter_map(|i| i.as_str().map(|s| s.to_string()))
+                                        .collect()
+                                })
+                                .unwrap_or_default();
+                            (cmd_str.to_string(), args)
+                        } else if let Some(cmd_obj) = obj.get("command").and_then(|v| v.as_object())
+                        {
+                            let path_cmd = cmd_obj
+                                .get("path")
+                                .and_then(|v| v.as_str())
+                                .ok_or_else(|| {
+                                    AdapterError::Malformed(format!(
+                                        "Context server '{id}' command missing `path`"
+                                    ))
+                                })?;
+                            let args: Vec<String> = cmd_obj
+                                .get("args")
+                                .and_then(|v| v.as_array())
+                                .map(|arr| {
+                                    arr.iter()
+                                        .filter_map(|i| i.as_str().map(|s| s.to_string()))
+                                        .collect()
+                                })
+                                .unwrap_or_default();
+                            (path_cmd.to_string(), args)
+                        } else if let Some(url) = obj.get("url").and_then(|v| v.as_str()) {
+                            if url.trim().is_empty() {
+                                return Err(AdapterError::Malformed(format!(
+                                    "Context server '{id}' empty url"
+                                )));
+                            }
+                            if has_path_traversal(url) {
+                                return Err(AdapterError::Malformed(format!(
+                                    "Path traversal in context server '{id}' url: {url}"
+                                )));
+                            }
+                            let mut env_placeholders = Vec::new();
+                            if let Some(env_obj) = obj.get("env").and_then(|v| v.as_object()) {
+                                for key in env_obj.keys() {
+                                    env_placeholders.push(key.clone());
+                                }
+                            }
+                            env_placeholders.sort();
+                            mcp_servers.push(McpServer {
+                                id: id.clone(),
+                                transport: "http".to_string(),
+                                command_or_url: url.to_string(),
+                                env_placeholders,
+                                targets: vec!["zed".to_string()],
+                                health: HealthStatus::Unknown,
+                            });
+                            continue;
+                        } else {
+                            return Err(AdapterError::Malformed(format!(
+                                "Context server '{id}' missing command or url"
+                            )));
+                        };
+
+                    if command.trim().is_empty() {
+                        return Err(AdapterError::Malformed(format!(
+                            "Context server '{id}' has empty command"
+                        )));
+                    }
+                    if has_path_traversal(&command) {
+                        return Err(AdapterError::Malformed(format!(
+                            "Path traversal in context server '{id}' command: {command}"
+                        )));
+                    }
+                    for arg in &args {
+                        if has_path_traversal(arg) {
+                            return Err(AdapterError::Malformed(format!(
+                                "Path traversal in context server '{id}' arg: {arg}"
+                            )));
+                        }
+                    }
 
                     let command_or_url = if args.is_empty() {
                         command
@@ -93,7 +186,7 @@ impl Adapter for ZedAdapter {
                     };
 
                     let mut env_placeholders = Vec::new();
-                    if let Some(env_obj) = val.get("env").and_then(|v| v.as_object()) {
+                    if let Some(env_obj) = obj.get("env").and_then(|v| v.as_object()) {
                         for key in env_obj.keys() {
                             env_placeholders.push(key.clone());
                         }
