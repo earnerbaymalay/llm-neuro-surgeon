@@ -2,7 +2,7 @@ use super::{
     clean_jsonc, compute_sha256, parse_and_validate_mcp_server, safe_join, strip_provenance,
 };
 use crate::adapter::{Adapter, AdapterError, ImportResult, ProjectResult};
-use crate::model::{Agent, HealthStatus, McpServer, Skill};
+use crate::model::{Agent, McpServer, Skill};
 use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};

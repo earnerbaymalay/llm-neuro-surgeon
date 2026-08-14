@@ -3,7 +3,7 @@ use super::{
     serialize_mdc_frontmatter, split_frontmatter, strip_provenance, MdcFrontmatter,
 };
 use crate::adapter::{Adapter, AdapterError, ImportResult, ProjectResult};
-use crate::model::{Agent, HealthStatus, McpServer, Skill};
+use crate::model::{Agent, McpServer, Skill};
 use serde_json::{json, Value};
 use std::fs;
 use std::path::Path;

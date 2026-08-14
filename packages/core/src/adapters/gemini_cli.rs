@@ -1,5 +1,6 @@
 use super::{compute_sha256, parse_and_validate_mcp_server, strip_provenance};
 use crate::adapter::{Adapter, AdapterError, ImportResult, ProjectResult};
+#[allow(unused_imports)]
 use crate::model::{Agent, HealthStatus, McpServer, Skill};
 use serde_json::{json, Value};
 use std::fs;

@@ -162,6 +162,9 @@ pub fn parse_mdc_frontmatter(fm: &str) -> Result<MdcFrontmatter, AdapterError> {
         };
         let key = line[..colon_idx].trim();
         let val = line[colon_idx + 1..].trim();
+        if !key.is_empty() {
+            has_recognized_key = true;
+        }
         match key {
             "description" => {
                 has_recognized_key = true;
@@ -185,7 +188,7 @@ pub fn parse_mdc_frontmatter(fm: &str) -> Result<MdcFrontmatter, AdapterError> {
                     }
                 }
             }
-            "alwaysApply" => {
+            "alwaysApply" | "always_apply" => {
                 has_recognized_key = true;
                 result.always_apply = val == "true";
             }

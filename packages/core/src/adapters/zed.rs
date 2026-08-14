@@ -1,6 +1,8 @@
-use super::{compute_sha256, strip_provenance};
+use super::{
+    clean_jsonc, compute_sha256, parse_and_validate_mcp_server, strip_provenance,
+};
 use crate::adapter::{Adapter, AdapterError, ImportResult, ProjectResult};
-use crate::model::{Agent, HealthStatus, McpServer, Skill};
+use crate::model::{Agent, McpServer, Skill};
 use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -60,54 +62,38 @@ impl Adapter for ZedAdapter {
             });
         }
 
-        let settings_path = root.join(".zed/settings.json");
-        if settings_path.exists() {
+        let mut settings_paths = Vec::new();
+        let root_zed = root.join(".zed/settings.json");
+        if root_zed.exists() {
+            settings_paths.push(root_zed);
+        }
+        let root_config_zed = root.join(".config/zed/settings.json");
+        if root_config_zed.exists() {
+            settings_paths.push(root_config_zed);
+        }
+        if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
+            let home_settings = home.join(".config/zed/settings.json");
+            if home_settings.exists() && !settings_paths.contains(&home_settings) {
+                settings_paths.push(home_settings);
+            }
+        }
+
+        for settings_path in settings_paths {
             let raw_json = fs::read_to_string(&settings_path).map_err(|e| {
-                AdapterError::Io(format!("Failed to read .zed/settings.json: {}", e))
+                AdapterError::Io(format!("Failed to read {}: {}", settings_path.display(), e))
             })?;
-            let parsed: Value = serde_json::from_str(&raw_json).map_err(|e| {
-                AdapterError::Malformed(format!("Invalid JSON in .zed/settings.json: {}", e))
+            let cleaned = clean_jsonc(&raw_json);
+            let parsed: Value = serde_json::from_str(&cleaned).map_err(|e| {
+                AdapterError::Malformed(format!(
+                    "Invalid JSON in {}: {}",
+                    settings_path.display(),
+                    e
+                ))
             })?;
 
             if let Some(servers) = parsed.get("context_servers").and_then(|v| v.as_object()) {
                 for (id, val) in servers {
-                    let command = val
-                        .get("command")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string();
-                    let args: Vec<String> = val
-                        .get("args")
-                        .and_then(|v| v.as_array())
-                        .map(|arr| {
-                            arr.iter()
-                                .map(|item| item.as_str().unwrap_or("").to_string())
-                                .collect()
-                        })
-                        .unwrap_or_default();
-
-                    let command_or_url = if args.is_empty() {
-                        command
-                    } else {
-                        format!("{} {}", command, args.join(" "))
-                    };
-
-                    let mut env_placeholders = Vec::new();
-                    if let Some(env_obj) = val.get("env").and_then(|v| v.as_object()) {
-                        for key in env_obj.keys() {
-                            env_placeholders.push(key.clone());
-                        }
-                    }
-                    env_placeholders.sort();
-
-                    mcp_servers.push(McpServer {
-                        id: id.clone(),
-                        transport: "stdio".to_string(),
-                        command_or_url,
-                        env_placeholders,
-                        targets: vec!["zed".to_string()],
-                        health: HealthStatus::Unknown,
-                    });
+                    parse_and_validate_mcp_server(id, val, "zed", &mut mcp_servers)?;
                 }
             }
         }
