@@ -20,10 +20,13 @@ impl Adapter for OpenAiCodexAdapter {
     }
 
     fn detect(&self, root: &Path) -> bool {
-        let in_root = root.join(".codex/config.toml").exists() || root.join(".codex/config.json").exists();
-        let in_home = std::env::var_os("HOME").map(PathBuf::from).map_or(false, |h| {
-            h.join(".codex/config.toml").exists() || h.join(".codex/config.json").exists()
-        });
+        let in_root =
+            root.join(".codex/config.toml").exists() || root.join(".codex/config.json").exists();
+        let in_home = std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .is_some_and(|h| {
+                h.join(".codex/config.toml").exists() || h.join(".codex/config.json").exists()
+            });
         in_root || in_home
     }
 

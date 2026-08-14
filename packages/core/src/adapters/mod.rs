@@ -35,11 +35,26 @@ pub fn all_adapters() -> Vec<Box<dyn Adapter>> {
     ]
 }
 
+use std::fs;
+
 /// Helper to compute SHA256 of string content.
 pub fn compute_sha256(content: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(content.as_bytes());
     hex::encode(hasher.finalize())
+}
+
+/// Helper to write file contents only if they have changed, preserving mtime on idempotent writes.
+pub fn write_if_changed(path: &Path, content: impl AsRef<[u8]>) -> std::io::Result<bool> {
+    if path.exists() {
+        if let Ok(existing) = fs::read(path) {
+            if existing == content.as_ref() {
+                return Ok(false);
+            }
+        }
+    }
+    fs::write(path, content)?;
+    Ok(true)
 }
 
 /// Helper to strip the LLM Neurosurgeon provenance header from imported rules.

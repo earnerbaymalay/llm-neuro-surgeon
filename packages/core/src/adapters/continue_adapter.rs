@@ -227,9 +227,7 @@ impl Adapter for ContinueAdapter {
 
         let rule_skills: Vec<&Skill> = skills
             .iter()
-            .filter(|s| {
-                s.targets.contains(&"continue".to_string()) && s.id != "continue-config"
-            })
+            .filter(|s| s.targets.contains(&"continue".to_string()) && s.id != "continue-config")
             .collect();
 
         if !rule_skills.is_empty() {

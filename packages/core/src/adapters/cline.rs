@@ -1,4 +1,4 @@
-use super::{clean_jsonc, compute_sha256, strip_provenance};
+use super::{clean_jsonc, compute_sha256, strip_provenance, write_if_changed};
 use crate::adapter::{Adapter, AdapterError, ImportResult, ProjectResult};
 use crate::model::{Agent, HealthStatus, McpServer, Skill};
 use serde_json::{json, Value};
@@ -123,7 +123,7 @@ impl Adapter for ClineAdapter {
                 concatenated
             );
             let rules_path = root.join(".clinerules");
-            fs::write(&rules_path, output)
+            write_if_changed(&rules_path, output)
                 .map_err(|e| AdapterError::Io(format!("Failed to write .clinerules: {}", e)))?;
             written.push(".clinerules".to_string());
         }
@@ -198,7 +198,7 @@ impl Adapter for ClineAdapter {
 
             let pretty = serde_json::to_string_pretty(&current_json)
                 .map_err(|e| AdapterError::Malformed(format!("Failed to serialize JSON: {}", e)))?;
-            fs::write(&mcp_path, pretty).map_err(|e| {
+            write_if_changed(&mcp_path, pretty).map_err(|e| {
                 AdapterError::Io(format!("Failed to write cline_mcp_settings.json: {}", e))
             })?;
             written.push("cline_mcp_settings.json".to_string());
